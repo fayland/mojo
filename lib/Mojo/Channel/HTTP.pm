@@ -7,7 +7,7 @@ has tx => sub { Mojo::Transaction->new };
 sub close {
   my $self = shift;
   $self->{state} = 'finished';
-  $self->tx->_announce_finished;
+  $self->tx->_announce_finish;
 }
 
 sub incoming { die 'meant to be overloaded by subclass' }

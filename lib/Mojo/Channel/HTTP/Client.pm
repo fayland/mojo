@@ -2,6 +2,23 @@ package Mojo::Channel::HTTP::Client;
 
 use Mojo::Base 'Mojo::Channel::HTTP';
 
+sub close {
+  my ($self, $close) = @_;
+
+  # Premature connection close
+  my $res = $self->tx->res->finish;
+  if ($close && !$res->code && !$res->error) {
+    $res->error({message => 'Premature connection close'});
+  }
+
+  # 4xx/5xx
+  elsif ($res->is_status_class(400) || $res->is_status_class(500)) {
+    $res->error({message => $res->message, code => $res->code});
+  }
+
+  return $self->SUPER::close;
+}
+
 sub incoming { shift->tx->res }
 
 sub outgoing { shift->tx->req }

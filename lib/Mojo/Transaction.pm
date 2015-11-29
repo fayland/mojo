@@ -14,23 +14,7 @@ has [
 has req => sub { Mojo::Message::Request->new };
 has res => sub { Mojo::Message::Response->new };
 
-sub client_close {
-  my ($self, $close) = @_;
-
-  # Premature connection close
-  my $res = $self->res->finish;
-  if ($close && !$res->code && !$res->error) {
-    $res->error({message => 'Premature connection close'});
-  }
-
-  # 4xx/5xx
-  elsif ($res->is_status_class(400) || $res->is_status_class(500)) {
-    $res->error({message => $res->message, code => $res->code});
-  }
-
-  return $self->server_close;
-}
-
+sub client_close { shift->_channel->close(@_) }
 sub client_read  { shift->_channel->read(@_) }
 sub client_write { shift->_channel->write(@_) }
 
@@ -60,9 +44,9 @@ sub remote_address {
     : $self->original_remote_address;
 }
 
-sub resume       { shift->_state(qw(write resume)) }
-sub server_close { shift->_state(qw(finished finish)) }
+sub resume       { shift->channel->resume(@_) }
 
+sub server_close { shift->_channel(1)->close(@_) }
 sub server_read  { shift->_channel(1)->read(@_) }
 sub server_write { shift->_channel(1)->write(@_) }
 
@@ -78,17 +62,11 @@ sub _channel {
   my $class = $server ? 'Mojo::Channel::HTTP::Server' : 'Mojo::Channel::HTTP::Client';
   my $channel = $class->new(tx => $self);
   Scalar::Util::weaken($channel->{tx});
-  return $channel;
+  return $self->channel($channel)->channel;
 }
 
-sub _state {
-  my ($self, $state, $event) = @_;
-  #TODO encapsulation!!!!!
-  if (my $channel = $self->channel) {
-    $channel->{state} = $state;
-  }
-  return $self->emit($event);
-}
+sub _announce_finish { shift->emit('finish') }
+sub _announce_resume { shift->emit('resume') }
 
 1;
 

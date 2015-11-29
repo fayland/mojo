@@ -4,6 +4,12 @@ use Mojo::Base 'Mojo::Channel';
 
 has tx => sub { Mojo::Transaction->new };
 
+sub close {
+  my $self = shift;
+  $self->{state} = 'finished';
+  $self->tx->_announce_finished;
+}
+
 sub incoming { die 'meant to be overloaded by subclass' }
 
 sub is_finished { (shift->{state} // '') eq 'finished' }
@@ -13,6 +19,12 @@ sub is_server { undef }
 sub is_writing { (shift->{state} // 'write') eq 'write' }
 
 sub outgoing { die 'meant to be overloaded by subclass' }
+
+sub resume {
+  my $self = shift;
+  $self->{state} = 'write';
+  $self->tx->_announce_resume;
+}
 
 sub write {
   my $self = shift;

@@ -4,11 +4,25 @@ use Mojo::Base 'Mojo::Channel::HTTP';
 
 sub incoming { shift->tx->res }
 
-sub is_server { undef }
-
 sub outgoing { shift->tx->req }
 
-sub _write {
+sub read {
+  my ($self, $chunk) = @_;
+
+  # Skip body for HEAD request
+  my $res = $self->tx->res;
+  $res->content->skip_body(1) if uc $self->tx->req->method eq 'HEAD';
+  return unless $res->parse($chunk)->is_finished;
+
+  # Unexpected 1xx response
+  return $self->{state} = 'finished'
+    if !$res->is_status_class(100) || $res->headers->upgrade;
+  $self->tx->_handle_unexpected;
+  return if (my $leftovers = $res->content->leftovers) eq '';
+  $self->read($leftovers);
+}
+
+sub write {
   my $self = shift;
 
   # Client starts writing right away

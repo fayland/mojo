@@ -2,11 +2,15 @@ package Mojo::Channel::HTTP;
 
 use Mojo::Base 'Mojo::Channel';
 
-has tx => sub { Mojo::Transaction->new }
+has tx => sub { Mojo::Transaction->new };
 
 sub incoming { die 'meant to be overloaded by subclass' }
 
-sub is_server { die 'meant to be overloaded by subclass' }
+sub is_finished { (shift->{state} // '') eq 'finished' }
+
+sub is_server { undef }
+
+sub is_writing { (shift->{state} // 'write') eq 'write' }
 
 sub outgoing { die 'meant to be overloaded by subclass' }
 

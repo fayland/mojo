@@ -2,10 +2,13 @@ package Mojo::Transaction;
 use Mojo::Base 'Mojo::EventEmitter';
 
 use Carp 'croak';
+use Mojo::Channel::HTTP::Client;
+use Mojo::Channel::HTTP::Server;
 use Mojo::Message::Request;
 use Mojo::Message::Response;
+use Scalar::Util;
 
-has channel => sub { Mojo::Channel::HTTP->new };
+has 'channel'; #sub { Mojo::Channel::HTTP->new };
 has [
   qw(kept_alive local_address local_port original_remote_address remote_port)];
 has req => sub { Mojo::Message::Request->new };
@@ -28,8 +31,8 @@ sub client_close {
   return $self->server_close;
 }
 
-sub client_read  { shift->channel->read(@_) }
-sub client_write { shift->channel->write(@_) }
+sub client_read  { shift->_channel->read(@_) }
+sub client_write { shift->_channel->write(@_) }
 
 sub connection {
   my $self = shift;
@@ -39,11 +42,11 @@ sub connection {
 
 sub error { $_[0]->req->error || $_[0]->res->error }
 
-sub is_finished { (shift->{state} // '') eq 'finished' }
+sub is_finished { (shift->channel || return)->is_finished }
 
 sub is_websocket {undef}
 
-sub is_writing { (shift->{state} // 'write') eq 'write' }
+sub is_writing { (shift->channel || return)->is_writing }
 
 sub remote_address {
   my $self = shift;
@@ -60,14 +63,30 @@ sub remote_address {
 sub resume       { shift->_state(qw(write resume)) }
 sub server_close { shift->_state(qw(finished finish)) }
 
-sub server_read  { shift->channel->read(@_) }
-sub server_write { shift->channel->write(@_) }
+sub server_read  { shift->_channel->read(@_) }
+sub server_write { shift->_channel->write(@_) }
 
 sub success { $_[0]->error ? undef : $_[0]->res }
 
+sub _channel {
+  my ($self, $server) = @_;
+  if (my $channel = $self->channel) {
+    return $channel if $server && $channel->isa('Mojo::Channel::HTTP::Server');
+    return $channel if !$server && $channel->isa('Mojo::Channel::HTTP::Client');
+    die 'channel mismatch!'
+  }
+  my $class = $server ? 'Mojo::Channel::HTTP::Server' : 'Mojo::Channel::HTTP::Client';
+  my $channel = $class->new(tx => $self);
+  Scalar::Util::weaken($channel->{tx});
+  return $channel;
+}
+
 sub _state {
   my ($self, $state, $event) = @_;
-  $self->{state} = $state;
+  #TODO encapsulation!!!!!
+  if (my $channel = $self->channel) {
+    $channel->{state} = $state;
+  }
   return $self->emit($event);
 }
 

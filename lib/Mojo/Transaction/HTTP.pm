@@ -5,22 +5,6 @@ use Mojo::Transaction::WebSocket;
 
 has 'previous';
 
-sub client_read {
-  my ($self, $chunk) = @_;
-
-  # Skip body for HEAD request
-  my $res = $self->res;
-  $res->content->skip_body(1) if uc $self->req->method eq 'HEAD';
-  return unless $res->parse($chunk)->is_finished;
-
-  # Unexpected 1xx response
-  return $self->{state} = 'finished'
-    if !$res->is_status_class(100) || $res->headers->upgrade;
-  $self->res($res->new)->emit(unexpected => $res);
-  return if (my $leftovers = $res->content->leftovers) eq '';
-  $self->client_read($leftovers);
-}
-
 sub is_empty { !!(uc $_[0]->req->method eq 'HEAD' || $_[0]->res->is_empty) }
 
 sub keep_alive {
@@ -48,19 +32,19 @@ sub redirects {
   return \@redirects;
 }
 
-sub server_read {
-  my ($self, $chunk) = @_;
-
-  # Parse request
+#TODO encapsulation!!!!
+sub _announce_request {
+  my $self = shift;
   my $req = $self->req;
-  $req->parse($chunk) unless $req->error;
-  $self->{state} ||= 'read';
-
-  # Generate response
-  return unless $req->is_finished && !$self->{handled}++;
   $self->emit(upgrade => Mojo::Transaction::WebSocket->new(handshake => $self))
     if $req->is_handshake;
   $self->emit('request');
+}
+
+sub _handle_unexpected {
+  my $self = shift;
+  my $res = $self->res;
+  $self->res($res->new)->emit(unexpected => $res);
 }
 
 1;

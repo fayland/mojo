@@ -5,6 +5,7 @@ use Carp 'croak';
 use Mojo::Message::Request;
 use Mojo::Message::Response;
 
+has channel => sub { Mojo::Channel::HTTP->new };
 has [
   qw(kept_alive local_address local_port original_remote_address remote_port)];
 has req => sub { Mojo::Message::Request->new };
@@ -27,8 +28,8 @@ sub client_close {
   return $self->server_close;
 }
 
-sub client_read  { croak 'Method "client_read" not implemented by subclass' }
-sub client_write { croak 'Method "client_write" not implemented by subclass' }
+sub client_read  { shift->channel->read(@_) }
+sub client_write { shift->channel->write(@_) }
 
 sub connection {
   my $self = shift;
@@ -59,8 +60,8 @@ sub remote_address {
 sub resume       { shift->_state(qw(write resume)) }
 sub server_close { shift->_state(qw(finished finish)) }
 
-sub server_read  { croak 'Method "server_read" not implemented by subclass' }
-sub server_write { croak 'Method "server_write" not implemented by subclass' }
+sub server_read  { shift->channel->read(@_) }
+sub server_write { shift->channel->write(@_) }
 
 sub success { $_[0]->error ? undef : $_[0]->res }
 

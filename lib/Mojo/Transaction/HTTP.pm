@@ -21,8 +21,6 @@ sub client_read {
   $self->client_read($leftovers);
 }
 
-sub client_write { shift->_write(0) }
-
 sub is_empty { !!(uc $_[0]->req->method eq 'HEAD' || $_[0]->res->is_empty) }
 
 sub keep_alive {
@@ -63,99 +61,6 @@ sub server_read {
   $self->emit(upgrade => Mojo::Transaction::WebSocket->new(handshake => $self))
     if $req->is_handshake;
   $self->emit('request');
-}
-
-sub server_write { shift->_write(1) }
-
-sub _body {
-  my ($self, $msg, $finish) = @_;
-
-  # Prepare body chunk
-  my $buffer = $msg->get_body_chunk($self->{offset});
-  my $written = defined $buffer ? length $buffer : 0;
-  $self->{write} = $msg->content->is_dynamic ? 1 : ($self->{write} - $written);
-  $self->{offset} += $written;
-  if (defined $buffer) { delete $self->{delay} }
-
-  # Delayed
-  else {
-    if   (delete $self->{delay}) { $self->{state} = 'paused' }
-    else                         { $self->{delay} = 1 }
-  }
-
-  # Finished
-  $self->{state} = $finish ? 'finished' : 'read'
-    if $self->{write} <= 0 || defined $buffer && $buffer eq '';
-
-  return defined $buffer ? $buffer : '';
-}
-
-sub _headers {
-  my ($self, $msg, $head) = @_;
-
-  # Prepare header chunk
-  my $buffer = $msg->get_header_chunk($self->{offset});
-  my $written = defined $buffer ? length $buffer : 0;
-  $self->{write} -= $written;
-  $self->{offset} += $written;
-
-  # Switch to body
-  if ($self->{write} <= 0) {
-    $self->{offset} = 0;
-
-    # Response without body
-    if ($head && $self->is_empty) { $self->{state} = 'finished' }
-
-    # Body
-    else {
-      $self->{http_state} = 'body';
-      $self->{write} = $msg->content->is_dynamic ? 1 : $msg->body_size;
-    }
-  }
-
-  return $buffer;
-}
-
-sub _start_line {
-  my ($self, $msg) = @_;
-
-  # Prepare start-line chunk
-  my $buffer = $msg->get_start_line_chunk($self->{offset});
-  my $written = defined $buffer ? length $buffer : 0;
-  $self->{write} -= $written;
-  $self->{offset} += $written;
-
-  # Switch to headers
-  @$self{qw(http_state write offset)} = ('headers', $msg->header_size, 0)
-    if $self->{write} <= 0;
-
-  return $buffer;
-}
-
-sub _write {
-  my ($self, $server) = @_;
-
-  # Client starts writing right away
-  $self->{state} ||= 'write' unless $server;
-  return '' unless $self->{state} eq 'write';
-
-  # Nothing written yet
-  $self->{$_} ||= 0 for qw(offset write);
-  my $msg = $server ? $self->res : $self->req;
-  @$self{qw(http_state write)} = ('start_line', $msg->start_line_size)
-    unless $self->{http_state};
-
-  # Start-line
-  my $chunk = '';
-  $chunk .= $self->_start_line($msg) if $self->{http_state} eq 'start_line';
-
-  # Headers
-  $chunk .= $self->_headers($msg, $server) if $self->{http_state} eq 'headers';
-
-  # Body
-  $chunk .= $self->_body($msg, $server) if $self->{http_state} eq 'body';
-
-  return $chunk;
 }
 
 1;

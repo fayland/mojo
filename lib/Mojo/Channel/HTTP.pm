@@ -88,7 +88,7 @@ sub _headers {
     $self->{offset} = 0;
 
     # Response without body
-    if ($head && $self->is_empty) { $self->{state} = 'finished' }
+    if ($head && $self->tx->is_empty) { $self->{state} = 'finished' }
 
     # Body
     else {

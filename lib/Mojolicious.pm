@@ -79,6 +79,7 @@ sub build_controller {
 sub build_tx {
   my $self = shift;
   my $tx   = Mojo::Transaction::HTTP->new;
+  $tx->_channel(1); #establish channel is a server
   $self->plugins->emit_hook(after_build_tx => $tx, $self);
   return $tx;
 }

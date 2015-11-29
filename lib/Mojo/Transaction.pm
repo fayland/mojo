@@ -26,11 +26,11 @@ sub connection {
 
 sub error { $_[0]->req->error || $_[0]->res->error }
 
-sub is_finished { (shift->channel || return)->is_finished }
+sub is_finished { (shift->channel || die 'is_finished called without establishing server/client')->is_finished }
 
 sub is_websocket {undef}
 
-sub is_writing { (shift->channel || return)->is_writing }
+sub is_writing { (shift->channel || die 'is_writing called without establishing server/client')->is_writing }
 
 sub remote_address {
   my $self = shift;
@@ -44,7 +44,7 @@ sub remote_address {
     : $self->original_remote_address;
 }
 
-sub resume       { shift->channel->resume(@_) }
+sub resume       { (shift->channel || die 'resumed without establishing server/client')->resume(@_) }
 
 sub server_close { shift->_channel(1)->close(@_) }
 sub server_read  { shift->_channel(1)->read(@_) }

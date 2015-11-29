@@ -100,6 +100,7 @@ sub tx {
 
   # Method and URL
   my $tx  = Mojo::Transaction::HTTP->new;
+  $tx->_channel(0); #establish channel is a client
   my $req = $tx->req->method(shift);
   my $url = shift;
   $url = "http://$url" unless $url =~ m!^/|://!;

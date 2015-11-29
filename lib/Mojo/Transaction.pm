@@ -63,8 +63,8 @@ sub remote_address {
 sub resume       { shift->_state(qw(write resume)) }
 sub server_close { shift->_state(qw(finished finish)) }
 
-sub server_read  { shift->_channel->read(@_) }
-sub server_write { shift->_channel->write(@_) }
+sub server_read  { shift->_channel(1)->read(@_) }
+sub server_write { shift->_channel(1)->write(@_) }
 
 sub success { $_[0]->error ? undef : $_[0]->res }
 
